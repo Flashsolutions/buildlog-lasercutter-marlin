@@ -59,28 +59,26 @@ static void lcd_set_contrast();
 static void lcd_control_retract_menu();
 static void lcd_sdcard_menu();
 #ifdef LASER
-	static void lcd_laser_focus_menu();
-	static void lcd_laser_menu();
-	static void lcd_laser_test_fire_menu();
-	static void laser_test_fire(uint8_t power, uint8_t dwell);
-	static void laser_set_focus(float f_length);
-	static void action_laser_focus_custom();
-	static void action_laser_focus_1mm();
-	static void action_laser_focus_2mm();
-	static void action_laser_focus_3mm();
-	static void action_laser_focus_4mm();
-	static void action_laser_focus_5mm();
-	static void action_laser_focus_6mm();
-	static void action_laser_focus_7mm();
-    static void action_laser_align_x();
-    static void action_laser_align_y();
-	static void action_laser_test_20_50ms();
-	static void action_laser_test_20_100ms();
-	static void action_laser_test_100_50ms();
-	static void action_laser_test_100_100ms();
-	static void action_laser_test_warm();
-	static void action_laser_acc_on();
-	static void action_laser_acc_off();
+  static void lcd_laser_focus_menu();
+  static void lcd_laser_menu();
+  static void lcd_laser_test_fire_menu();
+  static void laser_test_fire(uint8_t power, int dwell);
+  static void laser_set_focus(float f_length);
+  static void action_laser_focus_custom();
+  static void action_laser_focus_1mm();
+  static void action_laser_focus_2mm();
+  static void action_laser_focus_3mm();
+  static void action_laser_focus_4mm();
+  static void action_laser_focus_5mm();
+  static void action_laser_focus_6mm();
+  static void action_laser_focus_7mm();
+  static void action_laser_test_20_50ms();
+  static void action_laser_test_20_100ms();
+  static void action_laser_test_80_50ms();
+  static void action_laser_test_80_100ms();
+  static void action_laser_test_warm();
+  static void action_laser_acc_on();
+  static void action_laser_acc_off();
 #endif
 
 static void lcd_quick_feedback();//Cause an LCD refresh, and give the user visual or audiable feedback that something has happend
@@ -274,11 +272,11 @@ static void lcd_main_menu()
 {
     START_MENU();
     MENU_ITEM(back, MSG_WATCH, lcd_status_screen);
-	#ifdef LASER
-    	if (!(movesplanned() || IS_SD_PRINTING)) {
-    		MENU_ITEM(submenu, "Laser Functions", lcd_laser_menu);
-    	}
-	#endif
+  #ifdef LASER
+      if (!(movesplanned() || IS_SD_PRINTING)) {
+        MENU_ITEM(submenu, "Laser Functions", lcd_laser_menu);
+      }
+  #endif
     if (movesplanned() || IS_SD_PRINTING)
     {
         MENU_ITEM(submenu, MSG_TUNE, lcd_tune_menu);
@@ -757,134 +755,122 @@ static void lcd_control_retract_menu()
 #ifdef LASER
 static void lcd_laser_menu()
 {
-	START_MENU();
-	MENU_ITEM(back, MSG_MAIN, lcd_main_menu);
-	MENU_ITEM(submenu, "Set Focus", lcd_laser_focus_menu);
-	MENU_ITEM(submenu, "Test Fire", lcd_laser_test_fire_menu);
-	#ifdef LASER_PERIPHERALS
-	if (laser_peripherals_ok()) {
-		MENU_ITEM(function, "Turn On Pumps/Fans", action_laser_acc_on);
-	} else if (!(movesplanned() || IS_SD_PRINTING)) {
-		MENU_ITEM(function, "Turn Off Pumps/Fans", action_laser_acc_off);
-	}
-	#endif // LASER_PERIPHERALS
-	END_MENU();
+  START_MENU();
+  MENU_ITEM(back, MSG_MAIN, lcd_main_menu);
+  MENU_ITEM(submenu, "Set Focus", lcd_laser_focus_menu);
+  MENU_ITEM(submenu, "Test Fire", lcd_laser_test_fire_menu);
+  #ifdef LASER_PERIPHERALS
+  if (laser_peripherals_ok()) {
+    MENU_ITEM(function, "Turn On Pumps/Fans", action_laser_acc_on);
+  } else if (!(movesplanned() || IS_SD_PRINTING)) {
+    MENU_ITEM(function, "Turn Off Pumps/Fans", action_laser_acc_off);
+  }
+  #endif // LASER_PERIPHERALS
+  END_MENU();
 }
 
 static void lcd_laser_test_fire_menu() {
-	START_MENU();
-	MENU_ITEM(back, "Laser Functions", lcd_laser_menu);
-    MENU_ITEM(function, "Fire laser for Y alignment", action_laser_align_y);
-	MENU_ITEM(function, "Fire laser for X alignment", action_laser_align_x);
-    MENU_ITEM(function, " 20%  50ms", action_laser_test_20_50ms);
-	MENU_ITEM(function, " 20% 100ms", action_laser_test_20_100ms);
-	MENU_ITEM(function, "100%  50ms", action_laser_test_100_50ms);
-	MENU_ITEM(function, "100% 100ms", action_laser_test_100_100ms);
-	MENU_ITEM(function, "Warm-up Laser 2sec", action_laser_test_warm);
-	END_MENU();
+  START_MENU();
+  MENU_ITEM(back, "Laser Functions", lcd_laser_menu);
+  MENU_ITEM(function, " 20%  50ms", action_laser_test_20_50ms);
+  MENU_ITEM(function, " 20% 100ms", action_laser_test_20_100ms);
+  MENU_ITEM(function, "80%  50ms", action_laser_test_80_50ms);
+  MENU_ITEM(function, "80% 100ms", action_laser_test_80_100ms);
+  MENU_ITEM(function, "Warm-up Laser 2sec", action_laser_test_warm);
+  END_MENU();
 }
 
 
 static void action_laser_acc_on() {
-	enquecommand_P(PSTR("M80"));
+  enquecommand_P(PSTR("M80"));
 }
 
 static void action_laser_acc_off() {
-	enquecommand_P(PSTR("M81"));
-}
-
-static void action_laser_align_y() {
-    enquecommand_P(PSTR("G28 Y"));
-    enquecommand_P(PSTR("G1 Y500 S20 P0.1 B1 L20"));
-}
-
-static void action_laser_align_x() {
-    enquecommand_P(PSTR("G28 X"));
-    enquecommand_P(PSTR("G1 X500 S20 P0.1 B1 L20"));
+  enquecommand_P(PSTR("M81"));
 }
 
 static void action_laser_test_20_50ms() {
-	laser_test_fire(20, 50);
+  laser_test_fire(20, 50);
 }
 
 static void action_laser_test_20_100ms() {
-	laser_test_fire(20, 100);
+  laser_test_fire(20, 100);
 }
 
-static void action_laser_test_100_50ms() {
-	laser_test_fire(100, 50);
+static void action_laser_test_80_50ms() {
+  laser_test_fire(80, 50);
 }
 
-static void action_laser_test_100_100ms() {
-	laser_test_fire(100, 100);
+static void action_laser_test_80_100ms() {
+  laser_test_fire(80, 100);
 }
 
 static void action_laser_test_warm() {
-	laser_test_fire(15, 2000);
+  laser_test_fire(15, 2000);
 }
 
-static void laser_test_fire(uint8_t power, uint8_t dwell) {
-	enquecommand_P(PSTR("M80"));  // Enable laser accessories since we don't know if its been done (and there's no penalty for doing it again).
+static void laser_test_fire(uint8_t power, int dwell) {
+  enquecommand_P(PSTR("M80"));  // Enable laser accessories since we don't know if its been done (and there's no penalty for doing it again).
     laser_fire(power);
-	delay(dwell);
-	laser_extinguish();
+  delay(dwell);
+  laser_extinguish();
 }
 float focalLength = 0;
 static void lcd_laser_focus_menu() {
-	START_MENU();
-	MENU_ITEM(back, "Laser Functions", lcd_laser_menu);
-	MENU_ITEM(function, "1mm", action_laser_focus_1mm);
-	MENU_ITEM(function, "2mm", action_laser_focus_2mm);
-	MENU_ITEM(function, "3mm - 1/8in", action_laser_focus_3mm);
-	MENU_ITEM(function, "4mm", action_laser_focus_4mm);
-	MENU_ITEM(function, "5mm", action_laser_focus_5mm);
-	MENU_ITEM(function, "6mm - 1/4in", action_laser_focus_6mm);
-	MENU_ITEM(function, "7mm", action_laser_focus_7mm);
-	MENU_ITEM_EDIT_CALLBACK(float32, "Custom", &focalLength, 0, LASER_FOCAL_HEIGHT, action_laser_focus_custom);
-	END_MENU();
+  START_MENU();
+  MENU_ITEM(back, "Laser Functions", lcd_laser_menu);
+  MENU_ITEM(function, "1mm", action_laser_focus_1mm);
+  MENU_ITEM(function, "2mm", action_laser_focus_2mm);
+  MENU_ITEM(function, "3mm - 1/8in", action_laser_focus_3mm);
+  MENU_ITEM(function, "4mm", action_laser_focus_4mm);
+  MENU_ITEM(function, "5mm", action_laser_focus_5mm);
+  MENU_ITEM(function, "6mm - 1/4in", action_laser_focus_6mm);
+  MENU_ITEM(function, "7mm", action_laser_focus_7mm);
+  MENU_ITEM_EDIT_CALLBACK(float32, "Custom", &focalLength, 0, LASER_FOCAL_HEIGHT, action_laser_focus_custom);
+  END_MENU();
 }
 
 static void action_laser_focus_custom() {
-	laser_set_focus(focalLength);
+  laser_set_focus(focalLength);
 }
 
 static void action_laser_focus_1mm() {
-	laser_set_focus(1);
+  laser_set_focus(1);
 }
 
 static void action_laser_focus_2mm() {
-	laser_set_focus(2);
+  laser_set_focus(2);
 }
 
 static void action_laser_focus_3mm() {
-	laser_set_focus(3);
+  laser_set_focus(3);
 }
 
 static void action_laser_focus_4mm() {
-	laser_set_focus(4);
+  laser_set_focus(4);
 }
 
 static void action_laser_focus_5mm() {
-	laser_set_focus(5);
+  laser_set_focus(5);
 }
 
 static void action_laser_focus_6mm() {
-	laser_set_focus(6);
+  laser_set_focus(6);
 }
 
 static void action_laser_focus_7mm() {
-	laser_set_focus(7);
+  laser_set_focus(7);
 }
 static void laser_set_focus(float f_length) {
-	if (!has_axis_homed[Z_AXIS]) {
-		enquecommand_P(PSTR("G28 Z F150"));
-	}
-	focalLength = f_length;
-	float focus = LASER_FOCAL_HEIGHT - f_length;
-	char cmd[20];
+  if (!has_axis_homed[Z_AXIS]) {
+    enquecommand_P(PSTR("G28 Z F150"));
+  }
+  focalLength = f_length;
+  float focus = LASER_FOCAL_HEIGHT - f_length;
+  char cmd[20];
 
-	sprintf_P(cmd, PSTR("G0 Z%s F150"), ftostr52(focus));
-	enquecommand(cmd);
+  sprintf_P(cmd, PSTR("G0 Z%s F150"), ftostr52(focus));
+  enquecommand(cmd);
 }
 #endif
 #if SDCARDDETECT == -1
@@ -903,7 +889,7 @@ static void lcd_sd_updir()
 void lcd_sdcard_menu()
 {
     if (lcdDrawUpdate == 0 && LCD_CLICKED == 0)
-        return;	// nothing to do (so don't thrash the SD card)
+        return; // nothing to do (so don't thrash the SD card)
     uint16_t fileCnt = card.getnrfilenames();
     START_MENU();
     MENU_ITEM(back, MSG_MAIN, lcd_main_menu);
@@ -1007,39 +993,39 @@ menu_edit_type(float, float52, ftostr52, 100)
 menu_edit_type(unsigned long, long5, ftostr5, 0.01)
 
 #ifdef REPRAPWORLD_KEYPAD
-	static void reprapworld_keypad_move_z_up() {
+  static void reprapworld_keypad_move_z_up() {
     encoderPosition = 1;
     move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
-		lcd_move_z();
+    lcd_move_z();
   }
-	static void reprapworld_keypad_move_z_down() {
+  static void reprapworld_keypad_move_z_down() {
     encoderPosition = -1;
     move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
-		lcd_move_z();
+    lcd_move_z();
   }
-	static void reprapworld_keypad_move_x_left() {
+  static void reprapworld_keypad_move_x_left() {
     encoderPosition = -1;
     move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
-		lcd_move_x();
+    lcd_move_x();
   }
-	static void reprapworld_keypad_move_x_right() {
+  static void reprapworld_keypad_move_x_right() {
     encoderPosition = 1;
     move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
-		lcd_move_x();
-	}
-	static void reprapworld_keypad_move_y_down() {
+    lcd_move_x();
+  }
+  static void reprapworld_keypad_move_y_down() {
     encoderPosition = 1;
     move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
-		lcd_move_y();
-	}
-	static void reprapworld_keypad_move_y_up() {
-		encoderPosition = -1;
-		move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
     lcd_move_y();
-	}
-	static void reprapworld_keypad_move_home() {
-		enquecommand_P((PSTR("G28"))); // move all axis home
-	}
+  }
+  static void reprapworld_keypad_move_y_up() {
+    encoderPosition = -1;
+    move_menu_scale = REPRAPWORLD_KEYPAD_MOVE_STEP;
+    lcd_move_y();
+  }
+  static void reprapworld_keypad_move_home() {
+    enquecommand_P((PSTR("G28"))); // move all axis home
+  }
 #endif
 
 /** End of menus **/
@@ -1166,29 +1152,29 @@ void lcd_update()
     if (lcd_next_update_millis < millis())
     {
 #ifdef ULTIPANEL
-		#ifdef REPRAPWORLD_KEYPAD
-        	if (REPRAPWORLD_KEYPAD_MOVE_Z_UP) {
-        		reprapworld_keypad_move_z_up();
-        	}
-        	if (REPRAPWORLD_KEYPAD_MOVE_Z_DOWN) {
-        		reprapworld_keypad_move_z_down();
-        	}
-        	if (REPRAPWORLD_KEYPAD_MOVE_X_LEFT) {
-        		reprapworld_keypad_move_x_left();
-        	}
-        	if (REPRAPWORLD_KEYPAD_MOVE_X_RIGHT) {
-        		reprapworld_keypad_move_x_right();
-        	}
-        	if (REPRAPWORLD_KEYPAD_MOVE_Y_DOWN) {
-        		reprapworld_keypad_move_y_down();
-        	}
-        	if (REPRAPWORLD_KEYPAD_MOVE_Y_UP) {
-        		reprapworld_keypad_move_y_up();
-        	}
-        	if (REPRAPWORLD_KEYPAD_MOVE_HOME) {
-        		reprapworld_keypad_move_home();
-        	}
-		#endif
+    #ifdef REPRAPWORLD_KEYPAD
+          if (REPRAPWORLD_KEYPAD_MOVE_Z_UP) {
+            reprapworld_keypad_move_z_up();
+          }
+          if (REPRAPWORLD_KEYPAD_MOVE_Z_DOWN) {
+            reprapworld_keypad_move_z_down();
+          }
+          if (REPRAPWORLD_KEYPAD_MOVE_X_LEFT) {
+            reprapworld_keypad_move_x_left();
+          }
+          if (REPRAPWORLD_KEYPAD_MOVE_X_RIGHT) {
+            reprapworld_keypad_move_x_right();
+          }
+          if (REPRAPWORLD_KEYPAD_MOVE_Y_DOWN) {
+            reprapworld_keypad_move_y_down();
+          }
+          if (REPRAPWORLD_KEYPAD_MOVE_Y_UP) {
+            reprapworld_keypad_move_y_up();
+          }
+          if (REPRAPWORLD_KEYPAD_MOVE_HOME) {
+            reprapworld_keypad_move_home();
+          }
+    #endif
         if (abs(encoderDiff) >= ENCODER_PULSES_PER_STEP)
         {
             lcdDrawUpdate = 1;
@@ -1297,7 +1283,7 @@ void lcd_buttons_update()
           WRITE(SHIFT_CLK,LOW);
       }
       buttons_reprapworld_keypad=~newbutton_reprapworld_keypad; //invert it, because a pressed switch produces a logical 0
-	#endif
+  #endif
 #else   //read it from the shift register
     uint8_t newbutton=0;
     WRITE(SHIFT_LD,LOW);
@@ -1581,3 +1567,4 @@ void copy_and_scalePID_d()
 }
 
 #endif //ULTRA_LCD
+

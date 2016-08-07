@@ -52,7 +52,7 @@
 #include <SPI.h>
 #endif
 
-#define VERSION_STRING  "1.0.0"
+#define VERSION_STRING  "1.1"   // LGF bumped version up
 
 // look here for descriptions of gcodes: http://linuxcnc.org/handbook/gcode/g-code.html
 // http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
@@ -74,6 +74,8 @@
 // M Codes
 // M0   - Unconditional stop - Wait for user to press a button on the LCD (Only if ULTRA_LCD is enabled)
 // M1   - Same as M0
+// M3   - Turn Laser on or off  LGF added to list
+// M5   - Stop firing Laser     LGF added to list
 // M17  - Enable/Power all stepper motors
 // M18  - Disable all stepper motors; same as M84
 // M20  - List SD card
@@ -213,7 +215,7 @@ int EtoPPressure=0;
 #endif
 
 #ifdef ULTIPANEL
-	bool powersupply = true;
+  bool powersupply = true;
 #endif
 
 #ifdef DELTA
@@ -450,7 +452,7 @@ void setup()
   servo_init();
 
   lcd_init();
-  _delay_ms(1000);	// wait 1sec to display the splash screen
+  _delay_ms(1000);  // wait 1sec to display the splash screen
 
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     SET_OUTPUT(CONTROLLERFAN_PIN); //Set pin used for driver cooling fan
@@ -799,12 +801,6 @@ static void homeaxis(int axis) {
     has_axis_homed[axis] = true;
     current_position[axis] = 0;
     #ifdef MUVE_Z_PEEL
-
-      if (axis == Z_AXIS) {
-        has_axis_homed[E_AXIS] = true;
-        current_position[E_AXIS] = 0;
-      }
-
       plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[Z_AXIS]);
       destination[axis] = 1.5 * max_length(axis) * axis_home_dir;
       feedrate = homing_feedrate[axis];
@@ -835,11 +831,11 @@ static void homeaxis(int axis) {
       st_synchronize();
 
       destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
-	  #ifdef DELTA
-		feedrate = homing_feedrate[axis]/10;
-	  #else
-		feedrate = homing_feedrate[axis]/2 ;
-	  #endif
+    #ifdef DELTA
+    feedrate = homing_feedrate[axis]/10;
+    #else
+    feedrate = homing_feedrate[axis]/2 ;
+    #endif
 
       plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
       #endif // MUVE_Z_PEEL
@@ -879,6 +875,34 @@ void process_commands()
     switch((int)code_value())
     {
     case 0: // G0
+       if(Stopped == false) {
+        get_coordinates(); // For X Y Z E F
+
+        #ifdef LASER_FIRE_G1
+          // save the previous laser intensity 
+          if (laser.last_intensity != -1) 
+          {
+            laser.last_intensity = laser.intensity;
+          }
+          
+          // turn off laser for G0 fast moves
+          laser.intensity = (float) 0;
+
+          laser.status = LASER_ON;
+          laser.fired = LASER_FIRE_G1;
+        #endif // LASER_FIRE_G1
+
+        prepare_move();
+
+        #ifdef LASER_FIRE_G1
+          laser.status = LASER_OFF;
+        #endif // LASER_FIRE_G1
+
+        //ClearToSend();
+        return;
+      }   
+      break;
+    /*  LGF replaced this code with above code
       if(Stopped == false) {
         get_coordinates(); // For X Y Z E F
         prepare_move();
@@ -886,12 +910,19 @@ void process_commands()
         return;
       }
       //break;
+    */
     case 1: // G1
       if(Stopped == false) {
         get_coordinates(); // For X Y Z E F
 
         #ifdef LASER_FIRE_G1
-          if (code_seen('S') && !IsStopped()) laser.intensity = (float) code_value();
+          // LGF added check to restore laser intensity after G0 move
+          if (code_seen('S') && !IsStopped()) {
+          	laser.intensity = (float) code_value();
+            laser.last_intensity = laser.intensity;
+          } else if (!IsStopped() && laser.last_intensity != -1) {
+          	laser.intensity = laser.last_intensity;
+          }
           if (code_seen('L') && !IsStopped()) laser.duration = (unsigned long) labs(code_value());
           if (code_seen('P') && !IsStopped()) laser.ppm = (float) code_value();
           if (code_seen('D') && !IsStopped()) laser.diagnostics = (bool) code_value();
@@ -910,13 +941,19 @@ void process_commands()
         //ClearToSend();
         return;
       }
-      //break;
+      break;   // LGF added 
     case 2: // G2  - CW ARC
       if(Stopped == false) {
         get_arc_coordinates();
         
         #ifdef LASER_FIRE_G1
-          if (code_seen('S') && !IsStopped()) laser.intensity = (float) code_value();
+          // LGF added check to restore laser intensity after G0 move
+          if (code_seen('S') && !IsStopped()) {
+          	laser.intensity = (float) code_value();
+            laser.last_intensity = laser.intensity;
+          } else if (!IsStopped() && laser.last_intensity != -1) {
+            laser.intensity = laser.last_intensity;
+          }
           if (code_seen('L') && !IsStopped()) laser.duration = (unsigned long) labs(code_value());
           if (code_seen('P') && !IsStopped()) laser.ppm = (float) code_value();
           if (code_seen('D') && !IsStopped()) laser.diagnostics = (bool) code_value();
@@ -934,12 +971,20 @@ void process_commands()
         
         return;
       }
+      break;  // LGF added
     case 3: // G3  - CCW ARC
       if(Stopped == false) {
         get_arc_coordinates();
         
         #ifdef LASER_FIRE_G1
-          if (code_seen('S') && !IsStopped()) laser.intensity = (float) code_value();
+          // LGF added check to restore laser intensity after G0 move
+          if (code_seen('S') && !IsStopped()) {
+          	laser.intensity = (float) code_value();
+            laser.last_intensity = laser.intensity;
+          } else if (!IsStopped() && laser.last_intensity != -1) {
+            //SERIAL_ECHOPGM("Laser Intensity restored");
+            laser.intensity = laser.last_intensity;
+          }
           if (code_seen('L') && !IsStopped()) laser.duration = (unsigned long) labs(code_value());
           if (code_seen('P') && !IsStopped()) laser.ppm = (float) code_value();
           if (code_seen('D') && !IsStopped()) laser.diagnostics = (bool) code_value();
@@ -957,6 +1002,7 @@ void process_commands()
         
         return;
       }
+      break;   // LGF added 
     case 4: // G4 dwell
       LCD_MESSAGEPGM(MSG_DWELL);
       codenum = 0;
@@ -974,137 +1020,137 @@ void process_commands()
       break;
     #ifdef G5_BEZIER
     case 5: // G5 bezier curve - from http://forums.reprap.org/read.php?147,93577
-	  float p[4][2] = {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}};
-	  int steps = 10;
-	  float stepsPerUnit = 1;
-	  float f[2]={0,0};
-	  float fd[2]={0,0};
-	  float fdd[2]={0,0};
-	  float fddd[2]={0,0};
-	  float fdd_per_2[2]={0,0};
-	  float fddd_per_2[2]={0,0};
-	  float fddd_per_6[2]={0,0};
-	  float t = (1.0);
-	  float temp;
-	  // get coordinates
-	  //---------------------------------------
-	  // start point
-	  p[0][0] = current_position[0];
-	  p[0][1] = current_position[1];
-	  // control point 1
-	  if(code_seen('I')) p[1][0] = (float)code_value() + (axis_relative_modes[0] || relative_mode)*current_position[0];
-	  if(code_seen('J')) p[1][1] = (float)code_value() + (axis_relative_modes[1] || relative_mode)*current_position[1];
+    float p[4][2] = {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}};
+    int steps = 10;
+    float stepsPerUnit = 1;
+    float f[2]={0,0};
+    float fd[2]={0,0};
+    float fdd[2]={0,0};
+    float fddd[2]={0,0};
+    float fdd_per_2[2]={0,0};
+    float fddd_per_2[2]={0,0};
+    float fddd_per_6[2]={0,0};
+    float t = (1.0);
+    float temp;
+    // get coordinates
+    //---------------------------------------
+    // start point
+    p[0][0] = current_position[0];
+    p[0][1] = current_position[1];
+    // control point 1
+    if(code_seen('I')) p[1][0] = (float)code_value() + (axis_relative_modes[0] || relative_mode)*current_position[0];
+    if(code_seen('J')) p[1][1] = (float)code_value() + (axis_relative_modes[1] || relative_mode)*current_position[1];
  
-	  // control point 2
-	  if(code_seen('K')) p[2][0] = (float)code_value() + (axis_relative_modes[0] || relative_mode)*current_position[0];
-	  if(code_seen('L')) p[2][1] = (float)code_value() + (axis_relative_modes[1] || relative_mode)*current_position[1];
-	  // end point
-	  if(code_seen(axis_codes[0])) p[3][0] = (float)code_value() + (axis_relative_modes[0] || relative_mode)*current_position[0];
-	  if(code_seen(axis_codes[1])) p[3][1] = (float)code_value() + (axis_relative_modes[1] || relative_mode)*current_position[1];
+    // control point 2
+    if(code_seen('K')) p[2][0] = (float)code_value() + (axis_relative_modes[0] || relative_mode)*current_position[0];
+    if(code_seen('L')) p[2][1] = (float)code_value() + (axis_relative_modes[1] || relative_mode)*current_position[1];
+    // end point
+    if(code_seen(axis_codes[0])) p[3][0] = (float)code_value() + (axis_relative_modes[0] || relative_mode)*current_position[0];
+    if(code_seen(axis_codes[1])) p[3][1] = (float)code_value() + (axis_relative_modes[1] || relative_mode)*current_position[1];
  
-	  #ifdef DEBUG
-		log_float("CX", p[0][0]);
-		log_float("CY", p[0][1]);
-		log_float("I", p[1][0]);
-		log_float("J", p[1][1]);
-		log_float("K", p[2][0]);
-		log_float("L", p[2][1]);
-		log_float("X", p[3][0]);
-		log_float("Y", p[3][1]);
-	  #endif
-	  // calc num steps
-	  float maxD = 0, sqrD = 0;
-	  for (int i=1; i<4; i++) {
-		sqrD = (p[i][0] - p[i-1][0])*(p[i][0] - p[i-1][0]) + (p[i][1] - p[i-1][1])*(p[i][1] - p[i-1][1]);
-		if (sqrD > maxD) {maxD = sqrD; };
-	  }
-	  maxD = sqrt(maxD);
-	  if (maxD > 0) {
-		steps = round((3 * maxD * stepsPerUnit));
-	  }
-	  if (steps < 1) steps = 1;
-	  if (steps > 200) steps = 200;
-	  #ifdef DEBUG
-		log_float("maxD",maxD);
-		log_int("steps", steps);
-	  #endif
-	  // init Forward Differencing algo
-	  //---------------------------------------
-	  t = 1.0 / steps;
-	  temp = t*t;
-	  for (int i=0; i<2; i++) {
-		f[i] = p[0][i];
-		fd[i] = 3 * (p[1][i] - p[0][i]) * t;
-		fdd_per_2[i] = 3 * (p[0][i] - 2 * p[1][i] + p[2][i]) * temp;
-		fddd_per_2[i] = 3 * (3 * (p[1][i] - p[2][i]) + p[3][i] - p[0][i]) * temp * t;
+    #ifdef DEBUG
+    log_float("CX", p[0][0]);
+    log_float("CY", p[0][1]);
+    log_float("I", p[1][0]);
+    log_float("J", p[1][1]);
+    log_float("K", p[2][0]);
+    log_float("L", p[2][1]);
+    log_float("X", p[3][0]);
+    log_float("Y", p[3][1]);
+    #endif
+    // calc num steps
+    float maxD = 0, sqrD = 0;
+    for (int i=1; i<4; i++) {
+    sqrD = (p[i][0] - p[i-1][0])*(p[i][0] - p[i-1][0]) + (p[i][1] - p[i-1][1])*(p[i][1] - p[i-1][1]);
+    if (sqrD > maxD) {maxD = sqrD; };
+    }
+    maxD = sqrt(maxD);
+    if (maxD > 0) {
+    steps = round((3 * maxD * stepsPerUnit));
+    }
+    if (steps < 1) steps = 1;
+    if (steps > 200) steps = 200;
+    #ifdef DEBUG
+    log_float("maxD",maxD);
+    log_int("steps", steps);
+    #endif
+    // init Forward Differencing algo
+    //---------------------------------------
+    t = 1.0 / steps;
+    temp = t*t;
+    for (int i=0; i<2; i++) {
+    f[i] = p[0][i];
+    fd[i] = 3 * (p[1][i] - p[0][i]) * t;
+    fdd_per_2[i] = 3 * (p[0][i] - 2 * p[1][i] + p[2][i]) * temp;
+    fddd_per_2[i] = 3 * (3 * (p[1][i] - p[2][i]) + p[3][i] - p[0][i]) * temp * t;
  
-		fddd[i] = fddd_per_2[i] + fddd_per_2[i];
-		fdd[i] = fdd_per_2[i] + fdd_per_2[i];
-		fddd_per_6[i] = (fddd_per_2[i] * (1.0 / 3));
-	  }
-	  // prep destination
-	  for(int i=0; i < NUM_AXIS; i++) {
-		destination[i] = current_position[i];
-	  }
-	  // iterate through curve
-	  //---------------------------------------
-	  for (int loop=0; loop < steps; loop++) {
-		destination[0] = f[0];
-		destination[1] = f[1];
-		#ifdef DEBUG
-		  log_float("X",f[0]);
-		  log_float("Y",f[1]);
-		#endif
-	  prepare_move();
-	  previous_millis_cmd = millis();
+    fddd[i] = fddd_per_2[i] + fddd_per_2[i];
+    fdd[i] = fdd_per_2[i] + fdd_per_2[i];
+    fddd_per_6[i] = (fddd_per_2[i] * (1.0 / 3));
+    }
+    // prep destination
+    for(int i=0; i < NUM_AXIS; i++) {
+    destination[i] = current_position[i];
+    }
+    // iterate through curve
+    //---------------------------------------
+    for (int loop=0; loop < steps; loop++) {
+    destination[0] = f[0];
+    destination[1] = f[1];
+    #ifdef DEBUG
+      log_float("X",f[0]);
+      log_float("Y",f[1]);
+    #endif
+    prepare_move();
+    previous_millis_cmd = millis();
  
-	  // update f
-	  for (int i=0; i<2; i++) {
-		f[i] = f[i] + fd[i] + fdd_per_2[i] + fddd_per_6[i];
-		fd[i] = fd[i] + fdd[i] + fddd_per_2[i];
-		fdd[i] = fdd[i] + fddd[i];
-		fdd_per_2[i] = fdd_per_2[i] + fddd_per_2[i];
-		}
-	  }
-	  // Move to final position
-	  destination[0] = p[3][0];
-	  destination[1] = p[3][1];
-	  prepare_move();
-	  previous_millis_cmd = millis();
-	  break;
-	#endif // G5_BEZIER
+    // update f
+    for (int i=0; i<2; i++) {
+    f[i] = f[i] + fd[i] + fdd_per_2[i] + fddd_per_6[i];
+    fd[i] = fd[i] + fdd[i] + fddd_per_2[i];
+    fdd[i] = fdd[i] + fddd[i];
+    fdd_per_2[i] = fdd_per_2[i] + fddd_per_2[i];
+    }
+    }
+    // Move to final position
+    destination[0] = p[3][0];
+    destination[1] = p[3][1];
+    prepare_move();
+    previous_millis_cmd = millis();
+    break;
+  #endif // G5_BEZIER
     #ifdef LASER_RASTER
     case 7: //G7 Execute raster line
       if (code_seen('L')) laser.raster_raw_length = int(code_value());
-	  if (code_seen('$')) {
-		laser.raster_direction = (bool)code_value();
-		destination[Y_AXIS] = current_position[Y_AXIS] + (laser.raster_mm_per_pulse * laser.raster_aspect_ratio); // increment Y axis
-	  }
+    if (code_seen('$')) {
+    laser.raster_direction = (bool)code_value();
+    destination[Y_AXIS] = current_position[Y_AXIS] + (laser.raster_mm_per_pulse * laser.raster_aspect_ratio); // increment Y axis
+    }
       if (code_seen('D')) laser.raster_num_pixels = base64_decode(laser.raster_data, &cmdbuffer[bufindr][strchr_pointer - cmdbuffer[bufindr] + 1], laser.raster_raw_length);
-	  if (!laser.raster_direction) {
-	    destination[X_AXIS] = current_position[X_AXIS] - (laser.raster_mm_per_pulse * laser.raster_num_pixels);
-	    if (laser.diagnostics) {
+    if (!laser.raster_direction) {
+      destination[X_AXIS] = current_position[X_AXIS] - (laser.raster_mm_per_pulse * laser.raster_num_pixels);
+      if (laser.diagnostics) {
           SERIAL_ECHO_START;
           SERIAL_ECHOLN("Negative Raster Line");
         }
-	  } else {
-	    destination[X_AXIS] = current_position[X_AXIS] + (laser.raster_mm_per_pulse * laser.raster_num_pixels);
-	    if (laser.diagnostics) {
+    } else {
+      destination[X_AXIS] = current_position[X_AXIS] + (laser.raster_mm_per_pulse * laser.raster_num_pixels);
+      if (laser.diagnostics) {
           SERIAL_ECHO_START;
           SERIAL_ECHOLN("Positive Raster Line");
         }
-	  }
-	  
-	  laser.ppm = 1 / laser.raster_mm_per_pulse; //number of pulses per millimetre
-	  laser.duration = (1000000 / ( feedrate / 60)) / laser.ppm; // (1 second in microseconds / (time to move 1mm in microseconds)) / (pulses per mm) = Duration of pulse, taking into account feedrate as speed and ppm
-	  
-	  laser.mode = RASTER;
-	  laser.status = LASER_ON;
-	  laser.fired = RASTER;
-	  prepare_move();
+    }
+    
+    laser.ppm = 1 / laser.raster_mm_per_pulse; //number of pulses per millimetre
+    laser.duration = (1000000 / ( feedrate / 60)) / laser.ppm; // (1 second in microseconds / (time to move 1mm in microseconds)) / (pulses per mm) = Duration of pulse, taking into account feedrate as speed and ppm
+    
+    laser.mode = RASTER;
+    laser.status = LASER_ON;
+    laser.fired = RASTER;
+    prepare_move();
 
       break;
-	#endif // LASER_RASTER
+  #endif // LASER_RASTER
 
     #ifdef FWRETRACT
     case 10: // G10 retract
@@ -1137,7 +1183,6 @@ void process_commands()
       break;
       #endif //FWRETRACT
     case 28: //G28 Home all Axis one at a time
-      fanSpeed=255;
       saved_feedrate = feedrate;
       saved_feedmultiply = feedmultiply;
       feedmultiply = 100;
@@ -1364,14 +1409,14 @@ void process_commands()
       laser.status = LASER_ON;
       laser.fired = LASER_FIRE_SPINDLE;      
 //*=*=*=*=*=*
-          lcd_update();
-    
+      lcd_update();
       prepare_move();
       break;
     case 5:  //M5 stop firing laser
-	  laser.status = LASER_OFF;
-          lcd_update();
-	  prepare_move();
+      laser.intensity = 0;  // LGF added for lasers that are not switched! 
+      laser.status = LASER_OFF;
+      lcd_update();
+      prepare_move();
       break;
 #endif // LASER_FIRE_SPINDLE
     case 17:
@@ -1745,10 +1790,10 @@ void process_commands()
           LCD_MESSAGEPGM(WELCOME_MSG);
           lcd_update();
         #endif
-		#ifdef LASER_PERIPHERALS
-		  laser_peripherals_on();
-		  laser_wait_for_peripherals();
-		#endif // LASER_PERIPHERALS
+    #ifdef LASER_PERIPHERALS
+      laser_peripherals_on();
+      laser_wait_for_peripherals();
+    #endif // LASER_PERIPHERALS
         break;
       #endif
 
@@ -1760,9 +1805,9 @@ void process_commands()
         disable_e2();
         finishAndDisableSteppers();
         fanSpeed = 0;
-		#ifdef LASER_PERIPHERALS
-        	laser_peripherals_off();
-	    #endif // LASER_PERIPHERALS
+    #ifdef LASER_PERIPHERALS
+          laser_peripherals_off();
+      #endif // LASER_PERIPHERALS
         delay(1000); // Wait a little before to switch off
       #if defined(SUICIDE_PIN) && SUICIDE_PIN > -1
         st_synchronize();
@@ -1773,10 +1818,11 @@ void process_commands()
       #endif
       #ifdef ULTIPANEL
         powersupply = false;
-        LCD_MESSAGEPGM(MACHINE_NAME" "MSG_OFF".");
+        
+        LCD_MESSAGEPGM(MSG_OFF);   // LGF removed machine_name   08/01/2016
         lcd_update();
       #endif
-	  break;
+    break;
 
     case 82:
       axis_relative_modes[3] = false;
@@ -1804,18 +1850,18 @@ void process_commands()
         {
           st_synchronize();
           if(code_seen('X')) {
-        	  has_axis_homed[X_AXIS] = false;
-        	  disable_x();
+            has_axis_homed[X_AXIS] = false;
+            disable_x();
           }
           if(code_seen('Y')) {
-        	  has_axis_homed[Y_AXIS] = false;
-        	  disable_y();
+            has_axis_homed[Y_AXIS] = false;
+            disable_y();
           }
           if(code_seen('Z')) {
-			  #ifndef Z_AXIS_IS_LEADSCREW
-        	  	  has_axis_homed[Z_AXIS] = false;
-			#endif
-        	  disable_z();
+        #ifndef Z_AXIS_IS_LEADSCREW
+                has_axis_homed[Z_AXIS] = false;
+      #endif
+            disable_z();
           }
           #if ((E0_ENABLE_PIN != X_ENABLE_PIN) && (E1_ENABLE_PIN != Y_ENABLE_PIN)) // Only enable on boards that have seperate ENABLE_PINS
             if(code_seen('E')) {
@@ -2191,8 +2237,8 @@ void process_commands()
 #ifdef DOGLCD
     case 250: // M250  Set LCD contrast value: C<value> (value 0..63)
      {
-	  if (code_seen('C')) {
-	   lcd_setcontrast( ((int)code_value())&63 );
+    if (code_seen('C')) {
+     lcd_setcontrast( ((int)code_value())&63 );
           }
           SERIAL_PROTOCOLPGM("lcd contrast value: ");
           SERIAL_PROTOCOL(lcd_contrast);
@@ -2203,12 +2249,12 @@ void process_commands()
     #ifdef PREVENT_DANGEROUS_EXTRUDE
     case 302: // allow cold extrudes, or set the minimum extrude temperature
     {
-	  float temp = .0;
-	  if (code_seen('S')) temp=code_value();
+    float temp = .0;
+    if (code_seen('S')) temp=code_value();
       set_extrude_min_temp(temp);
     }
     break;
-	#endif
+  #endif
     case 303: // M303 PID autotune
     {
       float temp = 150.0;
@@ -2426,10 +2472,10 @@ void process_commands()
     break;
     #endif //DUAL_X_CARRIAGE
 
-	#ifdef LASER
-	case 649: // M649 set laser options
-	{
-	  if (code_seen('S') && !IsStopped()) {
+  #ifdef LASER
+  case 649: // M649 set laser options
+  {
+    if (code_seen('S') && !IsStopped()) {
           laser.intensity = (float) code_value();
           laser.rasterlaserpower =  laser.intensity;
       }
@@ -2443,26 +2489,26 @@ void process_commands()
         if(next_feedrate > 0.0) feedrate = next_feedrate;
       }
       
-	}
-	break;
-	#endif // LASER
+  }
+  break;
+  #endif // LASER
 
     #ifdef MUVE_Z_PEEL
     case 650: // M650 set peel distance
     {
       st_synchronize();
       if(code_seen('D')){
-		laser.peel_distance = (float) code_value();
+    laser.peel_distance = (float) code_value();
       } else {
         laser.peel_distance=2.0;
       }
       if(code_seen('S')){
-		laser.peel_speed = (float) code_value();
+    laser.peel_speed = (float) code_value();
       } else {
         laser.peel_speed=2.0;
       }
       if(code_seen('P')){
-		laser.peel_pause = (float) code_value();
+    laser.peel_pause = (float) code_value();
       } else {
         laser.peel_pause=0.0;
       }
@@ -2869,8 +2915,8 @@ void prepare_move()
 
   #ifdef LASER_FIRE_E
   if (current_position[E_AXIS] != destination[E_AXIS] && ((current_position[X_AXIS] != destination [X_AXIS]) || (current_position[Y_AXIS] != destination [Y_AXIS]))){
-	laser.status = LASER_ON;
-	laser.fired = LASER_FIRE_E;
+  laser.status = LASER_ON;
+  laser.fired = LASER_FIRE_E;
   }
   if (current_position[E_AXIS] == destination[E_AXIS] && laser.fired == LASER_FIRE_E){
     laser.status = LASER_OFF;
@@ -2887,11 +2933,11 @@ void prepare_move()
       #endif // MUVE_Z_PEEL
   }
   else {
-	#ifdef MUVE_Z_PEEL
-	  plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[Z_AXIS], feedrate*feedmultiply/60/100.0, active_extruder);
-	#else
+  #ifdef MUVE_Z_PEEL
+    plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[Z_AXIS], feedrate*feedmultiply/60/100.0, active_extruder);
+  #else
       plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate*feedmultiply/60/100.0, active_extruder);
-	#endif // MUVE_Z_PEEL
+  #endif // MUVE_Z_PEEL
   }
 #endif //else DELTA
   for(int8_t i=0; i < NUM_AXIS; i++) {
@@ -2983,15 +3029,15 @@ void manage_inactivity()
         disable_e2();
         #ifdef LASER
           if (laser.time / 60000 > 0) {
-		laser.lifetime += laser.time / 60000; // convert to minutes
-		laser.time = 0;
-		Config_StoreSettings();
-	  }
-          laser_init();
-	#endif // LASER
-	#ifdef LASER_PERIPHERALS
+        laser.lifetime += laser.time / 60000; // convert to minutes
+        laser.time = 0;
+        Config_StoreSettings();
+      }
+      laser_init();
+    #endif // LASER
+    #ifdef LASER_PERIPHERALS
             laser_peripherals_off();
-	#endif
+    #endif
       }
     }
   }

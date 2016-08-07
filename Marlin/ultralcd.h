@@ -12,6 +12,7 @@
   void lcd_setalertstatuspgm(const char* message);
   void lcd_reset_alert_level();
 
+
 #ifdef DOGLCD
   extern int lcd_contrast;
   void lcd_setcontrast(uint8_t value);

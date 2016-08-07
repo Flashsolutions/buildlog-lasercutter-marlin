@@ -327,7 +327,7 @@ ISR(TIMER1_COMPA_vect)
     if (laser.diagnostics) SERIAL_ECHOLN("Laser firing duration elapsed, in interrupt handler");
 	laser_extinguish();
   }
-  #endif LASER
+  #endif 
 	
   // If there is no current block, attempt to pop one from the buffer
   if (current_block == NULL) {
@@ -850,7 +850,7 @@ void st_init()
 
   #if defined(X_ENABLE_PIN) && X_ENABLE_PIN > -1
     SET_OUTPUT(X_ENABLE_PIN);
-    if(!X_ENABLE_ON) WRITE(X_ENABLE_PIN,HIGH);
+    WRITE(X_ENABLE_PIN,X_ENABLE_ON);   // LGF 
   #endif
   #if defined(X2_ENABLE_PIN) && X2_ENABLE_PIN > -1
     SET_OUTPUT(X2_ENABLE_PIN);
@@ -858,11 +858,11 @@ void st_init()
   #endif
   #if defined(Y_ENABLE_PIN) && Y_ENABLE_PIN > -1
     SET_OUTPUT(Y_ENABLE_PIN);
-    if(!Y_ENABLE_ON) WRITE(Y_ENABLE_PIN,HIGH);
+    WRITE(Y_ENABLE_PIN,Y_ENABLE_ON);   // LGF
   #endif
   #if defined(Z_ENABLE_PIN) && Z_ENABLE_PIN > -1
     SET_OUTPUT(Z_ENABLE_PIN);
-    if(!Z_ENABLE_ON) WRITE(Z_ENABLE_PIN,HIGH);
+    WRITE(Z_ENABLE_PIN,Z_ENABLE_ON);   // LGF
 
     #if defined(Z_DUAL_STEPPER_DRIVERS) && defined(Z2_ENABLE_PIN) && (Z2_ENABLE_PIN > -1)
       SET_OUTPUT(Z2_ENABLE_PIN);
@@ -967,6 +967,14 @@ void st_init()
     WRITE(E2_STEP_PIN,INVERT_E_STEP_PIN);
     disable_e2();
   #endif
+
+  // Initialize steps per axis  -  LGF
+  float tmp1[NUM_AXIS]=DEFAULT_AXIS_STEPS_PER_UNIT;
+  for(short i=0; i < NUM_AXIS; i++)
+  {
+      axis_steps_per_unit[i] = tmp1[i];
+  }   
+  //  end of init   
 
   // waveform generation = 0100 = CTC
   TCCR1B &= ~(1<<WGM13);

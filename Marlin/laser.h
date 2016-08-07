@@ -27,6 +27,7 @@
 typedef struct {
   int fired; // method used to ask the laser to fire - LASER_FIRE_G1, LASER_FIRE_SPINDLE, LASER_FIRE_E, etc
   float intensity; // Laser firing instensity 0.0 - 100.0
+  float last_intensity; // Last known intensity 
   float ppm; // pulses per millimeter, for pulsed firing mode
   unsigned long duration; // laser firing duration in microseconds, for pulsed firing mode
   unsigned long dur; // instantaneous duration
@@ -67,6 +68,14 @@ void laser_set_mode(int mode);
   void laser_peripherals_off();
   void laser_wait_for_peripherals();
 #endif // LASER_PERIPHERALS
+
+#ifdef HIGH_TO_FIRE // Some cutters fire on high, some on low.
+  #define LASER_ARM HIGH
+  #define LASER_UNARM LOW
+#else
+  #define LASER_ARM LOW
+  #define LASER_UNARM HIGH
+#endif
 
 // Laser constants
 #define LASER_OFF 0

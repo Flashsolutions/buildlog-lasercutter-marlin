@@ -1,7 +1,35 @@
 ==========================================
 Turnkey K40 Laser Arduino + Ramps Firmware
+Modified for MPCNC 2W Laser with Arduino + Ramps Firmware
 ==========================================
-An example of this firmware in action : https://www.youtube.com/watch?v=6DKSxDIkqoA
+
+About the MPCNC modifications...
+I found several minor problems with the original implementation and wanted to fix them 
+so that I could use this firmware on my MPCNC machine.  The stock Marlin firmware did not 
+work well with my machine, nor did Repetier and this code seemed to be much better suited 
+for laser applications.
+
+While it might have worked just fine for a Turnkey K40, it would not even move the axis'es on 
+my MPCNC machine without some modifications.
+
+Most of the problems centered around the handling of G00 moves.  G00 specifies to move the axis as 
+fast as possible.  However, once you return to G1, G2, or G3 moves, the feedrate remained at the 
+previous rate and the laser remained turned off.
+
+So this fork corrects that.  
+
+Inverted endstops do not work at all!  I ended up rewiring my endstops rather than spend the time 
+to fix the code, but be aware that you need endstops that trigger when grounded in order to use 
+this code as is.
+
+Additionally, the axis'es do not home correctly.  This was in the original code and I have not 
+fixed it either.
+
+The firmware was designed to work with the inkScape extension by the same author.  That too 
+required some modifications in order to correct the handling of G00 commands.  You will find 
+the inkScape extension modifications included in this set.  
+
+An example of the K40 firmware in action : https://www.youtube.com/watch?v=6DKSxDIkqoA
 
 Based off Marlin for 3D printers, for more info see https://github.com/MarlinFirmware/Marlin
 Original credits for building this firmware from stock Marlin go to THinkscape and Lansing Makers Network and John for help with raster support. 
@@ -9,7 +37,8 @@ This firmware is based on their foundation work.
 
 This firmware is designed to be used in conjunction with my Inkscape 0.91 gcode exporter https://github.com/TurnkeyTyranny/laser-gcode-exporter-inkscape-plugin
 
-You can contact me via email at : 394ad2f@gmail.com, I check my email daily usually.
+You can contact the orginal author via email at : 394ad2f@gmail.com.
+You can contact me at : larryfortna@gmail.com
 
 Donations
 ---------
@@ -17,10 +46,14 @@ Find this software useful? Donations are gratefully appreciated.
 
 * Paypal to 394ad2f@gmail.com
 * Bitcoins to 16TFmnFyvDA8Q6TTakvvhargy8c89Rb3cj
+* Paypal to larryfortna@gmail.com 
 
 Safety Warnings
 ==================
 Ensure that the Power Supply 5v rail is connected to RAMPS I2C 5v pin and that the D1 diode is removed from the RAMPS board as shown in the wiring diagram. If this pin is not connected the laser will fire when you disconnect your ramps board from USB power.
+
+The MPCNC does not use the above mentioned pin.  I highly recommend you at least put your Laser on a switch so 
+that you can ensure it remains off when not needed.
 
 Wiring
 ==================
@@ -35,6 +68,8 @@ Install the arduino software IDE/toolset (Some configurations also work with 1.x
 
 * Download the Marlin firmware to your PC and extract it
    https://github.com/TurnkeyTyranny/buildlog-lasercutter-marlin/archive/master.zip
+   use the Flashsolutions fork for MPCNC
+   https://github.com/Flashsolutions/buildlog-lasercutter-marlin
 
 * Start the Arduino IDE.
 
@@ -53,14 +88,17 @@ Install the arduino software IDE/toolset (Some configurations also work with 1.x
 
 * Utilise my exporter with Inkscape to design your cuts and rasters
     https://github.com/TurnkeyTyranny/laser-gcode-exporter-inkscape-plugin
+    replace the inkscape plugin files with the ones from flashsolutions
 
 * Burn your eyeballs out!
+* Seriously, always wear protective eyewear around Lasers!
 
 
 Features of this repo:
 ========================
 
 *   Modified for K40 power supplies that use 'Firing Pin Signal Low' to fire.
+*   Modified to work on MPCNC with a 2W laser
 *   Design in Inkscape, export to GCode, print!
 *   Raster image support, set your own max power level and have all pixel data appropriately shifted for intensity. Defaults to 270dpi
 *   Set your own feed rate in mm per minute.

@@ -254,6 +254,7 @@ void Config_RetrieveSettings()
 
 void Config_ResetDefault()
 {
+    float axis_steps_per_unit[] = {0,0,0,0};
     float tmp1[]=DEFAULT_AXIS_STEPS_PER_UNIT;
     float tmp2[]=DEFAULT_MAX_FEEDRATE;
     long tmp3[]=DEFAULT_MAX_ACCELERATION;
