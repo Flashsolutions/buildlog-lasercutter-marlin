@@ -26,7 +26,6 @@
  It has preliminary support for Matthew Roberts advance algorithm
     http://reprap.org/pipermail/reprap-dev/2011-May/003323.html
  */
-
 #include "Marlin.h"
 
 #include "ultralcd.h"
@@ -39,6 +38,8 @@
 #include "ConfigurationStore.h"
 #include "language.h"
 #include "pins_arduino.h"
+
+//#define DEBUG   //  Added by LGF to debug the code
 
 #ifdef LASER_RASTER
 #include "Base64.h"
@@ -64,6 +65,7 @@
 // G2  - CW ARC
 // G3  - CCW ARC
 // G4  - Dwell S<seconds> or P<milliseconds>
+// G7  - Raster 
 // G10 - retract filament according to settings of M207
 // G11 - retract recover filament according to settings of M208
 // G28 - Home all Axis
@@ -513,15 +515,18 @@ void loop()
 
 void get_command()
 {
-  while( MYSERIAL.available() > 0  && buflen < BUFSIZE) {
+  while( MYSERIAL.available() > 0  && buflen < BUFSIZE ) {
     serial_char = MYSERIAL.read();
     if(serial_char == '\n' ||
        serial_char == '\r' ||
        (serial_char == ':' && comment_mode == false) ||
        serial_count >= (MAX_CMD_SIZE - 1) )
     {
-      if(!serial_count) { //if empty line
+      if(!serial_count) {     //if empty line
         comment_mode = false; //for new command
+        #ifdef DEBUG 
+        	SERIAL_ECHOLN("Blank Line");
+        #endif
         return;
       }
       cmdbuffer[bufindw][serial_count] = 0; //terminate string
@@ -531,6 +536,11 @@ void get_command()
 
         //Turnkey - Changed <=6 to <=8 to allow up to 999999 lines of raster data to be transmitted per raster node
         //This area needs improving for stability.
+        
+        // Had to reduce the chunk size in turnkeylaser.py from 51 to 19, otherwise, this
+        // would not work!   LGF 
+
+
         if(  (strstr_P(cmdbuffer[bufindw], PSTR("G7")) == NULL && strchr(cmdbuffer[bufindw], 'N') != NULL) || //For non G7 commands, run as normal.
             ((strstr_P(cmdbuffer[bufindw], PSTR("G7")) != NULL) &&
             ((strstr_P(cmdbuffer[bufindw], PSTR("G7")) - strchr(cmdbuffer[bufindw], 'N')  <=8 ) &&
@@ -553,7 +563,9 @@ void get_command()
           {
             byte checksum = 0;
             byte count = 0;
-            while(cmdbuffer[bufindw][count] != '*') checksum = checksum^cmdbuffer[bufindw][count++];
+            while(cmdbuffer[bufindw][count] != '*') {
+            	checksum = (int)checksum^cmdbuffer[bufindw][count++];  // LGF cast to int to match checksum test below
+            }
             strchr_pointer = strchr(cmdbuffer[bufindw], '*');
 
             if( (int)(strtod(&cmdbuffer[bufindw][strchr_pointer - cmdbuffer[bufindw] + 1], NULL)) != checksum) {
@@ -598,10 +610,10 @@ void get_command()
           case 2:
           case 3:
             if(Stopped == false) { // If printer is stopped by an error the G[0-3] codes are ignored.
-          #ifdef SDSUPPORT
-              if(card.saving)
-                break;
-          #endif //SDSUPPORT
+		          #ifdef SDSUPPORT
+		              if(card.saving)
+		                break;
+		          #endif //SDSUPPORT
               SERIAL_PROTOCOLLNPGM(MSG_OK);
             }
             else {
@@ -621,14 +633,19 @@ void get_command()
     }
     else
     {
-      if(serial_char == ';') comment_mode = true;
-      if(!comment_mode) cmdbuffer[bufindw][serial_count++] = serial_char;
+      if(serial_char == ';') {
+      	comment_mode = true;
+      }
+      if(!comment_mode) {
+      	cmdbuffer[bufindw][serial_count++] = serial_char;
+      }
     }
   }
   #ifdef SDSUPPORT
   if(!card.sdprinting || serial_count!=0){
     return;
   }
+
   while( !card.eof()  && buflen < BUFSIZE) {
     int16_t n=card.get();
     serial_char = (char)n;
@@ -1119,20 +1136,29 @@ void process_commands()
     previous_millis_cmd = millis();
     break;
   #endif // G5_BEZIER
+
     #ifdef LASER_RASTER
     case 7: //G7 Execute raster line
-      if (code_seen('L')) laser.raster_raw_length = int(code_value());
-    if (code_seen('$')) {
-    laser.raster_direction = (bool)code_value();
-    destination[Y_AXIS] = current_position[Y_AXIS] + (laser.raster_mm_per_pulse * laser.raster_aspect_ratio); // increment Y axis
+    if (code_seen('L')) 
+    {
+        laser.raster_raw_length = int(code_value());
     }
-      if (code_seen('D')) laser.raster_num_pixels = base64_decode(laser.raster_data, &cmdbuffer[bufindr][strchr_pointer - cmdbuffer[bufindr] + 1], laser.raster_raw_length);
-    if (!laser.raster_direction) {
+    if (code_seen('$')) {
+      laser.raster_direction = (bool)code_value();
+      destination[Y_AXIS] = current_position[Y_AXIS] + (laser.raster_mm_per_pulse * laser.raster_aspect_ratio); // increment Y axis
+    }
+    if (code_seen('D')) 
+    {
+      laser.raster_num_pixels = base64_decode(laser.raster_data, &cmdbuffer[bufindr][strchr_pointer - cmdbuffer[bufindr] + 1], laser.raster_raw_length);
+    }
+    if (!laser.raster_direction) 
+    {
       destination[X_AXIS] = current_position[X_AXIS] - (laser.raster_mm_per_pulse * laser.raster_num_pixels);
-      if (laser.diagnostics) {
+      if (laser.diagnostics) 
+      {
           SERIAL_ECHO_START;
           SERIAL_ECHOLN("Negative Raster Line");
-        }
+      }
     } else {
       destination[X_AXIS] = current_position[X_AXIS] + (laser.raster_mm_per_pulse * laser.raster_num_pixels);
       if (laser.diagnostics) {
@@ -1147,6 +1173,7 @@ void process_commands()
     laser.mode = RASTER;
     laser.status = LASER_ON;
     laser.fired = RASTER;
+
     prepare_move();
 
       break;
