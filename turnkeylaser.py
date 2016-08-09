@@ -792,7 +792,7 @@ class Gcode_tools(inkex.Effect):
                 result_row = row2
             
             first = True
-            for chunk in get_chunks(result_row,51):
+            for chunk in get_chunks(result_row,19):  # reduced from 51 LGF
                 if first:
                     if forward:
                         gcode += ("\nG7 $1 ")
@@ -812,7 +812,7 @@ class Gcode_tools(inkex.Effect):
                 gcode += ("D"+b64+ "\n")
             forward = not forward
                 
-        gcode += ("M3 S0 \n");
+        gcode += ("M5 \n");  # changed to M5 by LGF
         gcode += ';End of Raster Image '+str(curve['id'])+'\n\n'
         
         return gcode
