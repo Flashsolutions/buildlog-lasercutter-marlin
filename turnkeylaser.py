@@ -1,7 +1,8 @@
 #!/usr/bin/env python 
+import logging
 
 """
-TurnkeyLaserExporter
+TurnkeyLaserMExporter
 
 -----------------------------------
 Maintained by Turnkey Tyranny (https://github.com/TurnkeyTyranny/laser-gcode-exporter-inkscape-plugin)
@@ -105,6 +106,7 @@ import re
 import copy
 import sys
 import time
+from time import gmtime, strftime
 
 #Image processing for rastering
 import base64
@@ -124,14 +126,14 @@ from io import BytesIO
 ###
 ################################################################################
 
-VERSION = "1.0.1"
+VERSION = "1.1.1"
 
 STRAIGHT_TOLERANCE = 0.0001
 STRAIGHT_DISTANCE_TOLERANCE = 0.0001
 LASER_ON = "M3 ;turn the laser on"          # LASER ON MCODE
-LASER_OFF = "M5 ;turn the laser off\n"        # LASER OFF MCODE
-
-HEADER_TEXT = ""
+LASER_OFF = "\nM5 ;turn the laser off\n"        # LASER OFF MCODE
+currentTime = strftime("%a, %d %b %Y %H:%M:%S -0004", gmtime())
+HEADER_TEXT = "; " + currentTime + "\n"
 FOOTER_TEXT = ""
 
 BIARC_STYLE = {
@@ -478,7 +480,7 @@ class Gcode_tools(inkex.Effect):
         #self.OptionParser.add_option("",   "--generate_not_parametric_code",action="store", type="inkbool",    dest="generate_not_parametric_code", default=False,help="Generated code will be not parametric.")        
         self.OptionParser.add_option("",   "--double_sided_cutting",action="store", type="inkbool",    dest="double_sided_cutting", default=False,help="Generate code for double-sided cutting.")
         self.OptionParser.add_option("",   "--draw-curves",                action="store", type="inkbool",    dest="drawCurves", default=False,help="Draws curves to show what geometry was processed")        
-        self.OptionParser.add_option("",   "--logging",                 action="store", type="inkbool",    dest="logging", default=False, help="Enable output logging from the plugin")
+        self.OptionParser.add_option("",   "--logging",                 action="store", type="inkbool",    dest="logging", default=True, help="Enable output logging from the plugin")
 
         self.OptionParser.add_option("",   "--loft-distances",            action="store", type="string",         dest="loft_distances", default="10",            help="Distances between paths.")
         self.OptionParser.add_option("",   "--loft-direction",            action="store", type="string",         dest="loft_direction", default="crosswise",        help="Direction of loft's interpolation.")
@@ -858,9 +860,9 @@ class Gcode_tools(inkex.Effect):
                 #if lg != "G00":
                 #    gcode += LASER_OFF + "\n"
 				
-                gcode += "G00 " + self.make_args(si[0]) + " F%i " % self.options.Mfeed + "\nG01 " + cutFeed + "\n"
+                gcode += "G00 " + self.make_args(si[0]) + " F%i " % self.options.Mfeed  + "\n"
                 lg = 'G00'
-
+                firstGCode = False  # ensure the next command includes feedrate LGF
 
 
             elif s[1] == 'end':
@@ -924,8 +926,8 @@ class Gcode_tools(inkex.Effect):
 
     
         #The end of the layer.
-        if si[1] == 'end':
-            gcode += LASER_OFF
+        #if si[1] == 'end':
+        #    gcode += LASER_OFF
 
 
         return gcode
@@ -1176,7 +1178,7 @@ class Gcode_tools(inkex.Effect):
                 originalLayerName = label
                 (layerName, layerParams) = parse_layer_name(label)
             except ValueError,e:
-                inkex.errormsg("Your inkscape layer is named incorrectly. Please use the format '20 [ppm=40,feed=300]' without the quotes. This would set the power at 20%, cutting at 300mm per minute at a pulse rate of 40 pulse per millimetre. The ppm option is optional, leaving it out will set the laser to continuous wave mode.")
+                inkex.errormsg("Your inkscape layer " + label + " is named incorrectly. Please use the format '20 [ppm=40,feed=300]' without the quotes. This would set the power at 20%, cutting at 300mm per minute at a pulse rate of 40 pulse per millimetre. The ppm option is optional, leaving it out will set the laser to continuous wave mode.")
                 return
 
             # Check if the layer specifies an alternative (from the default) feed rate
@@ -1249,7 +1251,7 @@ class Gcode_tools(inkex.Effect):
                
                 #Turnkey : Always output the layer header for information.
                 if (len(layers) > 0):
-                    header_data += LASER_OFF+"\n"
+                    #header_data += LASER_OFF+"\n"
                     size = 60
                     header_data += ";(%s)\n" % ("*"*size)
                     header_data += (";(***** Layer: %%-%ds *****)\n" % (size-19)) % (originalLayerName)
@@ -1266,7 +1268,7 @@ class Gcode_tools(inkex.Effect):
                     if (self.options.drawCurves):
                         self.draw_curve(curve)
                     
-                    gcode += header_data+self.generate_gcode(curve, 0, laserPower, altfeed=altfeed, altppm=altppm)
+                    gcode += self.generate_gcode(curve, 0, laserPower, altfeed=altfeed, altppm=altppm)
                 elif (curve['type'] == "raster"):
                     gcode_raster += header_data+self.generate_raster_gcode(curve, laserPower, altfeed=altfeed)
 
@@ -1326,7 +1328,7 @@ class Gcode_tools(inkex.Effect):
                     header_data = ""
                     #Turnkey : Always output the layer header for information.
                     if (len(layers) > 0):
-                        header_data += LASER_OFF+"\n"
+                        #header_data += LASER_OFF+"\n"
                         size = 60
                         header_data += ";(%s)\n" % ("*"*size)
                         header_data += (";(***** Layer: %%-%ds *****)\n" % (size-19)) % (originalLayerName)
@@ -1348,7 +1350,7 @@ class Gcode_tools(inkex.Effect):
                         gcode_raster += header_data+self.generate_raster_gcode(curve, laserPower, altfeed=altfeed)
                   
         if self.options.homeafter:
-            gcode += "\n\nG00 X0 Y0 F4000 ; home"
+            gcode += "\n"+LASER_OFF+"\nG00 X0 Y0 F4000 ; home"
        
        
         #Always raster before vector cutting.
@@ -1405,7 +1407,7 @@ class Gcode_tools(inkex.Effect):
             inkex.errormsg(("You must choose mm or in"))
             return
         
-        gcode += "M80 ; Turn on Optional Peripherals Board at LMN\n"
+        #gcode += "M80 ; Turn on Optional Peripherals Board at LMN\n"
          
 
         #Put the header data in the gcode file
@@ -1416,7 +1418,7 @@ class Gcode_tools(inkex.Effect):
 ; Default Laser Intensity %i percent\n""" % (self.options.feed, self.options.Mfeed, self.options.laser)
 
         if self.options.homebefore:
-            gcode += "G28 XY; home X and Y\n\n"
+            gcode += "G28 X Y; home X and Y\n\n"
 
         #if self.options.function == 'Curve':
         data = self.effect_curve(selected)
@@ -1438,8 +1440,9 @@ class Gcode_tools(inkex.Effect):
 
         try:
             logger.write('Output Directory:'+self.options.directory+'/'+self.options.file)
-            f = open(self.options.directory+'/'+self.options.file,"w")    
-            f.write(gcode+self.footer)
+            f = open(self.options.directory+'/'+self.options.file,"w")   
+            gcode = ('; Cut File:'+self.options.directory+'/'+self.options.file+'\n') + gcode 
+            f.write(gcode+LASER_OFF+self.footer)
             f.close()                            
         except:
             inkex.errormsg(("Can not write to specified file!"))
